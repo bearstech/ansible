@@ -201,6 +201,10 @@ class Connection(object):
         # close stdin after process is terminated and stdout/stderr are read
         # completely (see also issue #848)
         stdin.close()
+
+        # remove xterm escape sequences from output
+        stdout = re.sub("\033.*\007", "", stdout)
+
         return (p.returncode, stdout, stderr)
 
     def not_in_host_file(self, host):
