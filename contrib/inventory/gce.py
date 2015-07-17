@@ -204,7 +204,19 @@ class GceInventory(object):
         self.args = parser.parse_args()
 
 
+    def get_full_nodes(self):
+        request = "/aggregated/instances"
+        gg = self.driver.connection.request(request, method='GET').object
+        full_nodes = {}
+        for node in gg['items'].values():
+            if 'instances' in node:
+                for i in node['instances']:
+                    full_nodes[i['name']] = i
+        return full_nodes
+
+
     def node_to_dict(self, inst):
+        full = self.get_full_nodes()[inst.name]
         md = {}
 
         if inst is None:
@@ -230,7 +242,8 @@ class GceInventory(object):
             'gce_metadata': md,
             'gce_network': net,
             # Hosts don't have a public name, so we add an IP
-            'ansible_ssh_host': inst.public_ips[0] if len(inst.public_ips) >= 1 else inst.private_ips[0]
+            'ansible_ssh_host': inst.public_ips[0] if len(inst.public_ips) >= 1 else inst.private_ips[0],
+            'gce_disks': full['disks']
         }
 
     def get_instance(self, instance_name):
@@ -245,6 +258,8 @@ class GceInventory(object):
         groups = {}
         meta = {}
         meta["hostvars"] = {}
+
+        full_nodes = self.get_full_nodes()
 
         for node in self.driver.list_nodes():
             name = node.name
@@ -278,6 +293,11 @@ class GceInventory(object):
             stat = 'status_%s' % status.lower()
             if groups.has_key(stat): groups[stat].append(name)
             else: groups[stat] = [name]
+
+            disks = full_nodes[name]['disks']
+            if len(disks) > 1:
+                if groups.has_key('gce_disks'): groups['gce_disks'].append(name)
+                else: groups['gce_disks'] = [name]
 
         groups["_meta"] = meta
 
